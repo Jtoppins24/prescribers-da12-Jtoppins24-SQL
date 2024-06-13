@@ -70,27 +70,14 @@ ORDER BY count_opioid DESC;
 --prescriptions in the prescription table? 
 -- ^^ looking for records in the prescriber table that do NOT Have records in the prescription table 
 
-SELECT DISTINCT(prescriber.specialty_description) as specialty, drug_name
+
+SELECT prescriber.specialty_description, COUNT(prescription.drug_name) AS num_prescriptions
 FROM prescriber
 LEFT JOIN prescription
-USING(npi);
-
-SELECT DISTINCT(prescriber.specialty_description) as specialty
-FROM prescriber 
-WHERE npi NOT IN 
-	(SELECT DISTINCT(npi)
-	FROM prescription);
-
--- ^^ selecting npi because that is supposed to be the common factor between the two tables, but if it is NOT there that means there is no corresponding record (ie. no prescription for that prescriber)
-
-SELECT DISTINCT(npi)
-	FROM prescription;
-
-SELECT DISTINCT(specialty_description), drug_name
-	FROM prescriber
-	LEFT JOIN prescription
-	USING(npi)
-	WHERE specialty_description = 'Surgery';
+USING(npi)
+GROUP BY prescriber.specialty_description
+HAVING COUNT(prescription.drug_name) = 0
+;
 
 --     d. **Difficult Bonus:** *Do not attempt until you have solved all other problems!* 
 --For each specialty, report the percentage of total claims by that specialty which are for opioids. 
@@ -99,23 +86,70 @@ SELECT DISTINCT(specialty_description), drug_name
 -- 3. 
 --     a. Which drug (generic_name) had the highest total drug cost?
 
-SELECT SUM(prescription.total_drug_cost) AS drug_cost, drug.generic_name 
+SELECT prescription.total_drug_cost, drug.generic_name
 FROM prescription
 JOIN drug
 USING(drug_name)
-GROUP BY drug.generic_name
-ORDER BY drug_cost DESC;
+ORDER BY total_drug_cost DESC
+LIMIT 1;
 
---     b. Which drug (generic_name) has the hightest total cost per day? 
+--     b. Which drug (generic_name) has the hightest total cost per day (prescription.total_day_supply)? 
 
-
+SELECT (prescription.total_drug_cost / prescription.total_day_supply) AS drug_cost_per_day, drug.generic_name
+FROM prescription
+JOIN drug
+USING(drug_name)
+ORDER BY drug_cost_per_day DESC
+LIMIT 1; 
 
 --**Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.**
 
--- 4. 
---     a. For each drug in the drug table, return the drug name and then a column named 'drug_type' which says 'opioid' for drugs which have opioid_drug_flag = 'Y', says 'antibiotic' for those drugs which have antibiotic_drug_flag = 'Y', and says 'neither' for all other drugs. **Hint:** You may want to use a CASE expression for this. See https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-case/ 
+SELECT ROUND(prescription.total_drug_cost / prescription.total_day_supply, 2) AS drug_cost_per_day, drug.generic_name
+FROM prescription
+JOIN drug
+USING(drug_name)
+ORDER BY drug_cost_per_day DESC
+LIMIT 1; 
 
---     b. Building off of the query you wrote for part a, determine whether more was spent (total_drug_cost) on opioids or on antibiotics. Hint: Format the total costs as MONEY for easier comparision.
+-- 4. 
+--     a. For each drug in the drug table, 
+--return the drug name and then a column named 'drug_type' which says 'opioid' for drugs 
+--which have opioid_drug_flag = 'Y', says 'antibiotic' for those drugs which have antibiotic_drug_flag = 'Y', 
+--and says 'neither' for all other drugs. 
+--**Hint:** You may want to use a CASE expression for this. 
+--See https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-case/
+
+SELECT drug_name, 
+	(CASE 
+	WHEN opioid_drug_flag = 'Y' THEN 'opioid'
+	WHEN antibiotic_drug_flag ='Y' THEN 'antibiotic'
+	ELSE 'neither'
+	END)
+	AS drug_type
+FROM drug;
+
+--test
+SELECT drug_name, antibiotic_drug_flag
+FROM drug
+WHERE drug_name = 'AMIKACIN SULFATE';
+
+
+--     b. Building off of the query you wrote for part a, 
+--determine whether more was spent (total_drug_cost) on opioids or on antibiotics. 
+--Hint: Format the total costs as MONEY for easier comparision.
+
+SELECT drug.drug_name, 
+	(CASE 
+	WHEN drug.opioid_drug_flag = 'Y' THEN 'opioid'
+	WHEN drug.antibiotic_drug_flag ='Y' THEN 'antibiotic'
+	ELSE 'neither'
+	END)
+	AS drug_type,
+	prescription.total_drug_cost
+FROM drug
+LEFT JOIN prescription
+USING(drug_name);
+
 
 -- 5. 
 --     a. How many CBSAs are in Tennessee? **Warning:** The cbsa table contains information for all states, not just Tennessee.
