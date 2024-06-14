@@ -47,7 +47,7 @@ USING(npi)
 WHERE prescription.total_claim_count IS NOT NULL
 GROUP BY specialty
 ORDER BY total_claims DESC
-	LIMIT 1;
+	--LIMIT 1;
 
 --     b. Which specialty had the most total number of claims for opioids?
 
@@ -69,6 +69,7 @@ ORDER BY count_opioid DESC;
 --Are there any specialties that appear in the prescriber table that have no associated 
 --prescriptions in the prescription table? 
 -- ^^ looking for records in the prescriber table that do NOT Have records in the prescription table 
+-- Go back and try this with an EXCEPT 
 
 
 SELECT prescriber.specialty_description, COUNT(prescription.drug_name) AS num_prescriptions
@@ -78,6 +79,8 @@ USING(npi)
 GROUP BY prescriber.specialty_description
 HAVING COUNT(prescription.drug_name) = 0
 ;
+
+
 
 --     d. **Difficult Bonus:** *Do not attempt until you have solved all other problems!* 
 --For each specialty, report the percentage of total claims by that specialty which are for opioids. 
@@ -178,6 +181,13 @@ ORDER BY total_population DESC;
 
 --     c. What is the largest (in terms of population) county which is not included in a CBSA? Report the county name and population.
 
+SELECT population.population, population.fipscounty
+FROM population
+WHERE fipscounty NOT IN 
+	(SELECT fipscounty
+	FROM cbsa)
+ORDER BY population.population DESC;
+
 -- 6. 
 --     a. Find all rows in the prescription table where total_claims is at least 3000. Report the drug_name and the total_claim_count.
 
@@ -254,16 +264,29 @@ FROM drug;
 --     b. Next, report the number of claims per drug per prescriber. 
 --Be sure to include all combinations, whether or not the prescriber had any claims. 
 --You should report the npi, the drug name, and the number of claims (total_claim_count).
+--^^ join on 2 keys the second time to get more specific results (match both of these before returning), ie. bc the npi/providers could prescribe multiple diff drugs
+--^^ if the row count goes up after a left join, that means there are duplicates 
+-- ^^ returning nulls bc the prescriber didn't prescribe that drug
+-- ^^ associating total_claims with BOTH the npi and drug_name 
+--^^ double check things in the OG table
 
-SELECT prescriber.npi, drug.drug_name, SUM(prescription.total_claim_count) AS total_claims
+SELECT prescriber.npi, drug.drug_name, prescription.total_claim_count AS total_claims
 FROM prescriber
 CROSS JOIN drug
 LEFT JOIN prescription
-USING(npi)
+USING(npi, drug_name)
 WHERE prescriber.specialty_description = 'Pain Management'
 AND prescriber.nppes_provider_city = 'NASHVILLE'
-AND opioid_drug_flag = 'Y'
-GROUP BY prescriber.npi, drug.drug_name;
+AND opioid_drug_flag = 'Y';
 
 
 --     c. Finally, if you have not done so already, fill in any missing values for total_claim_count with 0. Hint - Google the COALESCE function.
+
+SELECT prescriber.npi, drug.drug_name, COALESCE(prescription.total_claim_count, 0) AS total_claims
+FROM prescriber
+CROSS JOIN drug
+LEFT JOIN prescription
+USING(npi, drug_name)
+WHERE prescriber.specialty_description = 'Pain Management'
+AND prescriber.nppes_provider_city = 'NASHVILLE'
+AND opioid_drug_flag = 'Y';
